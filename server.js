@@ -5,6 +5,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// 📁 Purane messages ko temporary save rakhne ke liye array (Database)
+let messageHistory = [];
+
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
@@ -37,13 +40,25 @@ app.get('/', (req, res) => {
             }
         });
         
+        // Naya function: Jab koi refresh kare, toh saare purane messages load karo
+        socket.on('loadHistory', function(history) {
+            chat.innerHTML = '<div>[SYSTEM]: Secure Connection Established... History Loaded.</div>';
+            history.forEach(function(data) {
+                printMessage(data);
+            });
+        });
+        
         socket.on('srv_msg', function(data) {
+            printMessage(data);
+        });
+
+        function printMessage(data) {
             const div = document.createElement('div');
             div.className = 'line';
             div.innerHTML = '[System.Out] <span class="user">' + data.sender + '</span>: "' + data.text + '"';
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
-        });
+        }
     </script>
 </body>
 </html>
@@ -51,12 +66,21 @@ app.get('/', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    socket.on('msg', (data) => { io.emit('srv_msg', data); });
+    // 🚀 Naye user ke connect hote hi use purani chat history bhej do
+    socket.emit('loadHistory', messageHistory);
+
+    socket.on('msg', (data) => { 
+        // Message ko history me save karo
+        messageHistory.push(data);
+        // Agar history 100 se zyada ho jaye toh sabse purana message delete karo (memory limit)
+        if(messageHistory.length > 100) messageHistory.shift();
+        
+        io.emit('srv_msg', data); 
+    });
 });
 
 server.listen(3000, () => {
     console.log('========================================');
-    console.log('🚀 TERMINAL CHAT SERVER ONLINE!');
-    console.log('👉 Open in browser: http://localhost:3000');
+    console.log('🚀 TERMINAL CHAT SERVER ONLINE WITH BACKUP!');
     console.log('========================================');
 });
